@@ -21,8 +21,19 @@ DSH 事件  →  HTTP POST（可选 HMAC 签名）  →  任意接收端  →  �
 | 推送核心 `lib/notify.js` | ✅ 可用 |
 | 配置解析 / 自动识别 | ✅ 可用 |
 | DSH 事件接线 `index.js` + `lib/dsh.js` | ✅ 字段名对着 `@deepseek-ai/dsh-session@0.2.1-rc.3` 的类型定义写，不是猜的 |
-| 32 项测试 | ✅ 全过 |
-| 真机联调（装进别人的 DSH 跑一遍） | ⏳ 正在做 |
+| 44 项测试 | ✅ 全过 |
+| 真机联调（装进 Windows 上的 DSH，推 QQ） | ✅ 已跑通：`plugin_mounted` / `task_done` 全程 200 |
+
+## 适配版本
+
+| 组件 | 版本 | 说明 |
+|---|---|---|
+| DSH（DeepSeek Harness） | `0.2.1-rc.3` | 真机验证的版本。事件名与字段从它的 npm 类型定义读出来，不是猜的 |
+| Cordis | `4.0.5` | DSH 的插件宿主；`export function apply(ctx, config)` + `ctx.on(...)` |
+| Node.js | `>= 20`（实测 22.x） | 只用 ESM、`globalThis.fetch`、`AbortSignal.timeout`，没有原生编译 |
+
+DSH 的 rc 通道改字段比想像中频繁。升级 DSH 后如果突然收不到推送，第一步是重跑
+`npm test` 里的事件回放用例（`test/fixtures/` 存的是真实会话日志），红了就是上游改了字段。
 
 事件名和字段来自 DSH 自己发布的 npm 包，可以自己核对：
 
@@ -32,7 +43,11 @@ tar -xzf dsh-session-*.tgz
 grep -n "'turn/end'" -A 4 package/lib/types/types.d.ts
 ```
 
-## 安装
+## 使用方法
+
+三步，五分钟。**判据是手机收到一条"已挂载"**——收不到就不用往下猜了，先看「注意事项」的第 1、2 条。
+
+### 第 1 步：放包
 
 它是一个普通的 Cordis 插件包，装进 DSH 的 profile 就行。
 
@@ -53,22 +68,30 @@ pnpm add /path/to/dsh-phone-notify  # 或 npm pack 出来的 tgz，或 GitHub �
         includeTitle: true
 ```
 
+### 第 2 步：改 `cordis.patch.yml`
+
 `insert:` 那一层不能省。这个文件里裸写的 `- id: xxx` 是**覆盖已有行**的语义，
 不是新增——`@deepseek-ai/dsh-plugin-manager` 会把「有 id 但没有 insert、且这个 id
 不在任何 bundle 的声明里」的条目归到 `overrides`，然后什么也不发生。
 插件不加载、不报错、日志里什么都没有。这是个会吃掉你半小时的坑。
 
-重启 DSH（或在 YAML 里开着 HMR 时它自己会重载）。日志里出现这一行就算挂上了：
+### 第 3 步：完全退出 DSH，再启动
+
+**关窗口不算重启。** DSH 常驻托盘，得托盘右键退出——Node 已经把插件读进内存了，
+只关窗口再打开，跑的还是旧代码。挂上之后手机会立刻收到一条：
 
 ```
-[phone-notify] 已挂载，推送到 https://your-host/…
+🔌 已挂载｜dsh-phone-notify v0.2.4
 ```
+
+标题里那个版本号就是**当前进程真正在跑的版本**，比看磁盘上的文件可靠。
+之后每跑完一轮就有一条 `✅ 做完了｜<会话标题>`。
 
 开发时也可以不装，直接跑测试看它能不能起来：
 
 ```bash
 npm install   # 只装一个 devDependency（schemastery，DSH 本来就有）
-npm test      # 32 项，1.4 秒
+npm test      # 44 项，1.5 秒
 ```
 
 ## 配置
@@ -157,7 +180,7 @@ export DSH_PHONE_SECRET="你的密钥"
 
 ```
 content-type: application/json
-user-agent: dsh-phone-notify/0.2.1
+user-agent: dsh-phone-notify/0.2.4
 x-dsh-event: task_done
 x-dsh-id: <uuid>
 x-webhook-timestamp: 1793000000              # 配了 secret 才有
@@ -186,7 +209,7 @@ HMAC_SHA256(secret, `${timestamp}.${rawBody}`)   // hex，不是 base64
 ## 测试
 
 ```bash
-npm test                        # 32 项单元测试 + 挂载测试
+npm test                        # 44 项单元测试 + 挂载测试 + 真实日志回放
 node bin/test-push.mjs          # 往你配的地址发一条假事件
 ```
 
@@ -196,16 +219,57 @@ node bin/test-push.mjs          # 往你配的地址发一条假事件
 
 第二条不碰 DSH、不读你的任何会话，只验"我这头到接收端"这段路。
 
-## 给推送配一张表情包（可选，安利向）
+## 表情包（可选，推荐）
 
-插件只发文字。想让它有表情，在自己接收端配图就行——思路和一份现成的事件映射表
-在 [docs/STICKERS.md](docs/STICKERS.md)。
+文字是信息，表情是情绪。同一个「✅ 做完了」看十遍，你会开始跳过它；配一张图，你会先看那一眼。
 
-素材我用的是一套叫**大肥鱼**的表情包：322 张动图、25 个情绪分类，作者是 B 站
-[可以叫我云大人](https://space.bilibili.com/103739)，[kiriyuki.com](https://kiriyuki.com)
-制作，CC-BY-NC-4.0（非商用、保留署名）。看完你就会明白为什么一个通知值一张图。
+插件只发文字，图在接收端加——这样插件保持零依赖零素材，接收端想配什么配什么。
 
-**素材不要打包进本仓库**，理由在 [docs/STICKERS.md](docs/STICKERS.md) 里写了。
+**推荐素材**：一套叫**大肥鱼**的表情包，322 张动图、25 个情绪分类（开心/疑惑/无语/垮掉/安慰……），
+作者 B 站 [可以叫我云大人](https://space.bilibili.com/103739)、[kiriyuki.com](https://kiriyuki.com) 制作，
+CC-BY-NC-4.0（非商用、保留署名）。
+
+### 装完之后怎么挂进来
+
+接收端拿到的是 `event_type` + 一句 `label`，所以只要一张「事件 → 图」的表：
+
+```python
+# 接收端（webhook handler）里加这么一段就够了
+STICKER = {
+    "task_done":        "whale_ok.gif",       # 得意，举牌 ✅
+    "task_failed":      "whale_fail.gif",     # 趴地上，举牌 ❌
+    "waiting_approval": "whale_hmm.gif",      # 歪头，等你点头
+    "waiting_input":    "whale_pat.gif",      # 拍拍，等你回话
+}
+
+def on_event(event_type: str, label: str, title: str) -> None:
+    send_text(f"{label}｜{title}")
+    if gif := STICKER.get(event_type):
+        send_image(gif)                        # 文字在上、表情在下，像人发完补一张
+```
+
+配好之后手机上长这样：
+
+```
+✅ 做完了｜给推荐卡加一个墙
+[一张举着 ✓ 的鲸鱼娘]
+```
+
+Hermes 用户可以用 webhook 路由的 `sticker_map`（手工键，CLI 不暴露）配同一张表；
+其它接收端同理——Bark / 企业微信 / 飞书机器人 都支持图文两条消息。
+
+选图的诀窍是**别选"正确"的，选"有反应"的**：`task_done` 配个打勾图标正确但无聊，配一张拉炮，你会笑一下。
+
+素材版权归作者，随这个仓库分发不合适，所以包里没有任何图片。
+
+## 注意事项
+
+1. **`insert:` 不能省**（见第 2 步）。漏了不会报错，只会静默不加载——这是这个项目最费时间的一个坑。
+2. **"重启"是退出进程，不是关窗口。** 装完/改完没有真的重启，表现是「文件是新的、功能是旧的、一条错误都没有」。
+3. **接收端要认 `event_type`。** 很多 webhook 网关按这个字段取事件名，缺了就归到 `unknown` 静默丢弃，返回 200 却什么都不推。
+4. **`secret` 两边必须一致**，且签名是 `HMAC_SHA256(secret, timestamp + "." + body)` 的 hex，不是 base64；头名是 `X-Webhook-Signature-V2`，自定义头名会被当成"没带签名"。
+5. **免打扰时段里 `task_failed` 照样推**——失败了总该知道，其余事件静默。
+6. **推送不含对话正文**，只有会话标题和 id 尾号。接收端被别人看到也拼不回内容。
 
 ## 安全
 
