@@ -18,22 +18,52 @@ DSH 事件  →  HTTP POST（可选 HMAC 签名）  →  任意接收端  →  �
 
 | 部分 | 状态 |
 |---|---|
-| 推送核心 `lib/notify.js` | ✅ 可用，11 项测试全过 |
-| 配置解析 / 自动识别 / 向导 | ✅ 可用 |
-| DSH 事件接线 `lib/index.js` | ⏳ **v0.1.1**，等真机验证事件字段 |
+| 推送核心 `lib/notify.js` | ✅ 可用 |
+| 配置解析 / 自动识别 | ✅ 可用 |
+| DSH 事件接线 `index.js` + `lib/dsh.js` | ✅ 字段名对着 `@deepseek-ai/dsh-session@0.2.1-rc.3` 的类型定义写，不是猜的 |
+| 32 项测试 | ✅ 全过 |
+| 真机联调（装进别人的 DSH 跑一遍） | ⏳ 正在做 |
 
-现在发的是 `0.1.0-alpha`：能拿来做接收端联调，还不能真的替你在 DSH 里弹通知。
-原因写在 [docs/PUBLISH.md](docs/PUBLISH.md) 最后一节：宁可空着，也不猜一个字段名上去。
+事件名和字段来自 DSH 自己发布的 npm 包，可以自己核对：
+
+```bash
+npm pack @deepseek-ai/dsh-session@0.2.1-rc.3
+tar -xzf dsh-session-*.tgz
+grep -n "'turn/end'" -A 4 package/lib/types/types.d.ts
+```
 
 ## 安装
 
+它是一个普通的 Cordis 插件包，装进 DSH 的 profile 就行。
+
 ```bash
-git clone https://github.com/<you>/dsh-phone-notify
-cd dsh-phone-notify
-npm test          # 11 项，秒级
+cd ~/.dsh/profiles/desktop          # Windows: %USERPROFILE%\.dsh\profiles\desktop
+pnpm add /path/to/dsh-phone-notify  # 或 npm pack 出来的 tgz，或 GitHub 地址
 ```
 
-没有依赖。`dependencies` 是空的——不是你信我，是这一行本身可验证。
+然后在同一个目录的 `cordis.patch.yml` 里加一行（这个文件是 DSH 自己的配置层，它上面所有 bundle 之后应用）：
+
+```yaml
+- id: phone-notify
+  name: dsh-phone-notify
+  config:
+    url: https://your-host/webhooks/dsh-notify
+    secret: 你的密钥
+    includeTitle: true
+```
+
+重启 DSH（或在 YAML 里开着 HMR 时它自己会重载）。日志里出现这一行就算挂上了：
+
+```
+[phone-notify] 已挂载，推送到 https://your-host/…
+```
+
+开发时也可以不装，直接跑测试看它能不能起来：
+
+```bash
+npm install   # 只装一个 devDependency（schemastery，DSH 本来就有）
+npm test      # 32 项，1.4 秒
+```
 
 ## 配置
 
@@ -79,12 +109,38 @@ export DSH_PHONE_SECRET="你的密钥"
 ```json
 {
   "event": "task_done",
+  "event_type": "task_done",
   "at": "2026-10-28T14:02:23.000Z",
   "title": "给推荐卡加一个墙",
   "session": "…f9177",
-  "turn": "654321"
+  "turn": "3"
 }
 ```
+
+`event_type` 是给接收端路由用的（Hermes 从 `payload.event_type` 取事件名，没有就记成
+`unknown` 静默丢掉——这个是踩过的坑，写在 [docs/SAFETY.md](docs/SAFETY.md) 里）。
+
+### 事件对照表
+
+| DSH 的 `turn/end` reason.kind | 推送的 event | 叫不叫醒你 |
+|---|---|---|
+| `completed` | `task_done` | 叫 |
+| `error` | `task_failed` | **免打扰时段也照叫** |
+| `blocked` | `task_blocked` | 叫 |
+| `max-tokens` | `task_truncated` | 叫（被截断了，得你接手） |
+| `aborted` | `task_aborted` | 默认不叫，`notifyOnAbort: true` 打开 |
+| `interrupted` | — | 不推：崩溃恢复时补写的收尾，不是实时事件 |
+| `forked` | — | 不推：fork 边界标记 |
+
+另外两个来自 DSH 的中间件事件：
+
+| DSH 事件 | 推送的 event | 说明 |
+|---|---|---|
+| `approval/request` | `waiting_approval` | 工具要你批准，标题带工具名 |
+| `user-questions/request` | `waiting_input` | DSH 在等你回答 |
+
+这两个**只观察，不拦截**：插件照样把 `next()` 调下去，决定权还在电脑前。
+通知失败也只是通知失败，不会让 DSH 卡在等你。
 
 - `title` 截断到 60 字、换行压平，可用 `includeTitle: false` 整个关掉
 - `session` 只保留**尾 6 位**，日志被人看到也拼不回完整会话
@@ -95,23 +151,27 @@ export DSH_PHONE_SECRET="你的密钥"
 
 ```
 content-type: application/json
+user-agent: dsh-phone-notify/0.1
 x-dsh-event: task_done
-x-dsh-timestamp: 1793000000
 x-dsh-id: <uuid>
-x-dsh-signature: sha256=<hex>      # 配了 secret 才有
+x-webhook-timestamp: 1793000000              # 配了 secret 才有
+x-webhook-signature-v2: <hex>                # 配了 secret 才有
 ```
 
-验签口径和 Hermes 的 webhook 平台一致：
+验签：
 
 ```js
-HMAC_SHA256(secret, `${timestamp}.${rawBody}`)
+HMAC_SHA256(secret, `${timestamp}.${rawBody}`)   // hex，不是 base64
 ```
 
-配合 `x-dsh-timestamp` 做时间窗校验（建议 300 秒），过期即拒。
+头名用 `X-Webhook-Signature-V2` 是为了对得上 Hermes 的 webhook 平台和 Standard Webhooks
+那一系的口径——自定义头名会被人家当成"没带签名"直接拒，而且不告诉你是头名的问题。
+时间窗建议 300 秒，过期即拒。
 
 ## 其他行为
 
 - **幂等**：同一 `session + turn` 60 秒内只推一次，断网重连不会刷屏
+- **去抖**：同一会话同类事件 3 秒内只推第一条（`minIntervalMs` 可调），免得连着震两次
 - **重试**：5xx / 网络异常退避重试（默认 2 次）；4xx 直接放弃——那是地址或密钥错了，重试没意义
 - **限流**：默认 10 条/分钟，超了丢掉并记日志
 - **免打扰**：`quietHours` 内除 `task_failed` 外全静默
@@ -120,9 +180,13 @@ HMAC_SHA256(secret, `${timestamp}.${rawBody}`)
 ## 测试
 
 ```bash
-npm test                        # 单元测试
+npm test                        # 32 项单元测试 + 挂载测试
 node bin/test-push.mjs          # 往你配的地址发一条假事件
 ```
+
+`test/plugin.test.mjs` 用一个假的 Cordis ctx 把插件真挂一遍，验的是：
+钩子注册上了没有、没配地址时会不会假装在工作、一轮结束有没有真的发出 POST、
+`next()` 有没有被漏调。这部分不需要装 DSH。
 
 第二条不碰 DSH、不读你的任何会话，只验"我这头到接收端"这段路。
 

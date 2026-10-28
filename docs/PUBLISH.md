@@ -84,14 +84,22 @@ gh release create v0.1.0-alpha --title "0.1.0-alpha" --notes "- 推送核心\n- 
 
 ---
 
-## 最后一节：为什么 index.js 现在是空的
+## 最后一节：钩子是怎么定下来的
 
 同类插件里有一个作者写了自检，用来过滤子智能体产生的通知。自检一直绿，
 过滤从来没生效过——因为他用了一个**不存在的字段名**，判断恒为 false。
 
-我不想复制这个错误。DSH 装好之后，我要做的第一件事是打印真实会话行，
-看清 `displayTitle`、`origin`、`parentId`、`retainedBy` 到底有什么、什么时候变，
-再写那三个钩子。
+我不想复制这个错误，所以钩子不是猜的，是从 DSH 自己发布的包里读出来的：
 
-在那之前，`lib/index.js` 里挂三个 TODO 出口，README 标 `alpha`。
+```bash
+npm pack @deepseek-ai/dsh-session@0.2.1-rc.3
+tar -xzf dsh-session-*.tgz
+grep -n "'turn/end'" -A 4 package/lib/types/types.d.ts   # reason.kind 的全部取值
+grep -n "'session/event'" -A 2 package/lib/types/index.d.ts
+```
+
+由此确定的三个挂点：`session/event`（一轮结束）、`approval/request`、`user-questions/request`。
+`reason.kind` 的七个取值里有五个是实时事件，另外两个（`interrupted`/`forked`）
+是事后补写的收尾标记，推给手机会是假警报，所以显式映射成 `null` 丢掉。
+
 **宁可看起来不完整，也不要看起来完整但其实没跑。**

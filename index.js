@@ -1,0 +1,89 @@
+/**
+ * dsh-phone-notify — DSH 插件入口（Cordis）。
+ *
+ * 挂三个钩子，都在 `@deepseek-ai/dsh-session@0.2.1-rc.3` 里真实存在：
+ *
+ *   session/event          (session, {type, seq, time, data})   一轮结束时推
+ *   approval/request       (req, next)                          要你批准时推（只观察）
+ *   user-questions/request (req, next)                          等你回答时推（只观察）
+ *
+ * 后两个是中间件：拿到 next 必须原样调下去，否则 DSH 会卡住等你——那不是通知，
+ * 那是把工具变成枷锁。这一层只负责叫醒手机，决定权还在电脑前。
+ */
+import z from '@deepseek-ai/schemastery'
+import { push } from './lib/notify.js'
+import { resolveConfig } from './lib/config.js'
+import { createNotifier } from './lib/dsh.js'
+
+export const name = 'dsh-phone-notify'
+
+export const Config = z.object({
+  url: z.string().description('接收端 webhook 地址（http/https）'),
+  secret: z.string().role('secret').description('HMAC 签名密钥，留空则不带签名'),
+  includeTitle: z.boolean().default(true).description('推送里带会话标题'),
+  notifyOnAbort: z.boolean().default(false).description('你按了停止也推一条'),
+  notifyOnApproval: z.boolean().default(true).description('工具要批准时推'),
+  notifyOnQuestion: z.boolean().default(true).description('等你回答时推'),
+  quietHours: z.string().default('').description('免打扰时段，形如 23:00-08:00；空为关闭'),
+  minIntervalMs: z.number().default(3000).description('同一会话同一事件的去抖窗口（毫秒）'),
+})
+
+export function apply(ctx, config = {}) {
+  const { cfg, warnings } = resolveConfig(config)
+  const logger = (msg) => {
+    try {
+      ctx.logger?.('warn', `[dsh-phone-notify] ${msg}`)
+    } catch {
+      /* 日志本身不能成为故障源 */
+    }
+  }
+  for (const w of warnings) logger(w)
+
+  if (!cfg.url) {
+    logger('没有推送地址，插件不工作（设置 url 或环境变量 DSH_PHONE_WEBHOOK_URL）')
+    return
+  }
+
+  const titles = new Map()
+  const send = (event, meta) => push(cfg, event, meta, { logger })
+  const notify = createNotifier({
+    send,
+    getTitle: (id) => titles.get(id),
+    logger,
+    minIntervalMs: cfg.minIntervalMs ?? 3000,
+    cfg,
+  })
+
+  ctx.on('session/event', (session, event) => {
+    try {
+      if (event?.type === 'session/title') {
+        const t = event.data?.title
+        if (typeof t === 'string' && t) titles.set(session?.id, t)
+        return
+      }
+      notify.onSessionEvent(session, event)
+    } catch (e) {
+      logger(`处理会话事件失败：${e?.name || 'Error'}`)
+    }
+  })
+
+  ctx.on('approval/request', (req, next) => {
+    try {
+      notify.onApproval(req)
+    } catch (e) {
+      logger(`处理批准请求失败：${e?.name || 'Error'}`)
+    }
+    return next()
+  })
+
+  ctx.on('user-questions/request', (req, next) => {
+    try {
+      notify.onQuestion(req)
+    } catch (e) {
+      logger(`处理提问失败：${e?.name || 'Error'}`)
+    }
+    return next()
+  })
+
+  logger(`已挂载，推送到 ${cfg.url.replace(/\/[^/]*$/, '/…')}`)
+}
