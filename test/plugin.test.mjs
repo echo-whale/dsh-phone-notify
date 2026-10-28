@@ -158,7 +158,8 @@ test('挂载成功会自报一声 plugin_mounted（装没装上靠这个判）',
   assert.equal(calls.length, 1)
   assert.equal(calls[0].event, 'plugin_mounted')
   assert.equal(calls[0].event_type, 'plugin_mounted')
-  assert.match(calls[0].title, /dsh-phone-notify v\d/)
+  assert.match(calls[0].title, /^dsh-phone-notify v\d/)
+  assert.equal(calls[0].label, '🔌 已挂载', 'label 是给人看的那句话')
 })
 
 test('挂载阶段炸了，用同一条链路把死因推出来', async () => {

@@ -60,7 +60,9 @@ export function apply(ctx, config = {}) {
       const { cfg } = resolveConfig(config)
       if (cfg.url) {
         push(cfg, 'plugin_error', {
-          title: `插件挂载失败 v${VERSION}`,
+          // 标题里直接带死因：推送模板没法做条件渲染，detail 是给脚本用的，
+          // 你在手机上看的是 title。
+          title: `v${VERSION} · ${String(e?.message || e).slice(0, 60)}`,
           sessionId: 'mount',
           detail: `${e?.name || 'Error'}: ${String(e?.message || e).slice(0, 300)}`,
         })
@@ -94,7 +96,7 @@ function applyPlugin(ctx, config = {}) {
   // 自报一声。收到这条 = 插件确实被 DSH 加载了、签名和网络也通，
   // 后面收不到 task_done 就只可能是事件没挂上，排查范围立刻缩小一半。
   send('plugin_mounted', {
-    title: `dsh-phone-notify v${VERSION} 已挂载`,
+    title: `dsh-phone-notify v${VERSION}`,
     sessionId: 'mount',
     detail: `node ${process.versions?.node || '?'} · ${process.platform} · 待命`,
   })

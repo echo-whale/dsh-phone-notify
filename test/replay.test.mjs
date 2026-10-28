@@ -2,7 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { mapTurnEnd } from '../lib/dsh.js'
+import { mapTurnEnd, TURN_END_MAP } from '../lib/dsh.js'
+import { LABELS, labelOf, buildPayload } from '../lib/notify.js'
 
 /**
  * 用一份真实的 DSH 会话日志回放。
@@ -54,4 +55,16 @@ test('真实日志：一轮的开始和结束配对得上', () => {
   assert.deepEqual(starts, ends)
   const steps = fixture.filter((e) => e.type === 'step/start').length
   assert.equal(steps, fixture.filter((e) => e.type === 'step/end').length)
+})
+
+
+test('每个会推出去的事件都有中文标签（手机上不该出现 task_done 这种字样）', () => {
+  const emitted = new Set(Object.values(TURN_END_MAP).filter(Boolean))
+  for (const e of ['waiting_approval', 'waiting_input', 'plugin_mounted', 'plugin_error']) emitted.add(e)
+  assert.ok(emitted.size >= 9)
+  for (const e of emitted) assert.ok(LABELS[e], `缺标签：${e}`)
+  assert.equal(labelOf('some_future_event'), 'some_future_event', '没配标签就退回事件名，不能是 undefined')
+  const body = buildPayload('task_done', { title: '计算 1+1 等于几', sessionId: 'session-08a26f10-x' }, { includeDetail: false })
+  assert.equal(body.label, '✅ 做完了')
+  assert.equal(body.event_type, 'task_done', '机器字段保留')
 })
