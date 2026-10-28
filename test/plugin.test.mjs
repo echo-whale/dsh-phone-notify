@@ -228,3 +228,23 @@ test('连标题服务都没有时，至少给会话尾号，别让模板渲染�
   const done = calls.find((c) => c.event === 'task_done')
   assert.equal(done.title, '会话 …71c0a6')
 })
+
+test('拿不到标题服务时，挂载消息的标题里直说，不用翻日志', async () => {
+  const calls = []
+  globalThis.fetch = async (url, init) => { calls.push(JSON.parse(init.body)); return { ok: true, status: 200 } }
+  const { apply } = await import('../index.js')
+  apply(fakeCtx(), { url: 'https://example.test/hook' })
+  await new Promise((r) => setTimeout(r, 30))
+  assert.match(calls[0].title, /标题服务不可用/)
+})
+
+test('拿得到标题服务时，挂载消息保持干净', async () => {
+  const calls = []
+  globalThis.fetch = async (url, init) => { calls.push(JSON.parse(init.body)); return { ok: true, status: 200 } }
+  const { apply } = await import('../index.js')
+  const ctx = fakeCtx()
+  ctx.sessionTitle = { get: () => ({ title: 'x' }) }
+  apply(ctx, { url: 'https://example.test/hook' })
+  await new Promise((r) => setTimeout(r, 30))
+  assert.doesNotMatch(calls[0].title, /标题服务不可用/)
+})

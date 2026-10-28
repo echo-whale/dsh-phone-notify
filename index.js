@@ -93,22 +93,29 @@ function applyPlugin(ctx, config = {}) {
   const titles = new Map()
   const send = (event, meta) => push(cfg, event, meta, { logger })
 
-  // 自报一声。收到这条 = 插件确实被 DSH 加载了、签名和网络也通，
-  // 后面收不到 task_done 就只可能是事件没挂上，排查范围立刻缩小一半。
-  send('plugin_mounted', {
-    title: `dsh-phone-notify v${VERSION}`,
-    sessionId: 'mount',
-    detail: `node ${process.versions?.node || '?'} · ${process.platform} · 待命`,
-  })
   // 标题三级兜底：本次挂载后收到的 session/title 事件 -> 标题服务读日志
   // （能覆盖挂载前就存在的旧会话）-> 至少给个会话尾号，别让模板渲染出空。
   const titleService = (() => {
-    try {
-      return ctx.get?.('sessionTitle') ?? null
-    } catch {
-      return null
+    // 两条路都试：DSH 里服务既可能是 ctx.sessionTitle 属性，也可能只能 ctx.get 拿到。
+    for (const probe of [() => ctx.sessionTitle, () => ctx.get?.('sessionTitle')]) {
+      try {
+        const svc = probe()
+        if (svc && typeof svc.get === 'function') return svc
+      } catch {
+        /* 拿不到就换下一条路 */
+      }
     }
+    return null
   })()
+
+  // 自报一声。收到这条 = 插件确实被 DSH 加载了、签名和网络也通，
+  // 后面收不到 task_done 就只可能是事件没挂上，排查范围立刻缩小一半。
+  // 标题服务拿不到时，标题里直接标出来——省得再让你翻日志、再猜一轮。
+  send('plugin_mounted', {
+    title: `dsh-phone-notify v${VERSION}${titleService ? '' : ' · 标题服务不可用'}`,
+    sessionId: 'mount',
+    detail: `node ${process.versions?.node || '?'} · ${process.platform} · 待命`,
+  })
   const resolveTitle = (id, session) => {
     const seen = titles.get(id)
     if (seen) return seen
