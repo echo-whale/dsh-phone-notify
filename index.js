@@ -100,9 +100,34 @@ function applyPlugin(ctx, config = {}) {
     sessionId: 'mount',
     detail: `node ${process.versions?.node || '?'} · ${process.platform} · 待命`,
   })
+  // 标题三级兜底：本次挂载后收到的 session/title 事件 -> 标题服务读日志
+  // （能覆盖挂载前就存在的旧会话）-> 至少给个会话尾号，别让模板渲染出空。
+  const titleService = (() => {
+    try {
+      return ctx.get?.('sessionTitle') ?? null
+    } catch {
+      return null
+    }
+  })()
+  const resolveTitle = (id, session) => {
+    const seen = titles.get(id)
+    if (seen) return seen
+    try {
+      const snap = titleService?.get?.(session)
+      if (snap?.title) {
+        titles.set(id, snap.title)
+        return snap.title
+      }
+    } catch {
+      /* 服务不在或已销毁都不该影响推送 */
+    }
+    // 再兜一层：连尾号都没有就别硬凑，让模板自己去消化
+    return id ? `会话 …${String(id).slice(-6)}` : undefined
+  }
+
   const notify = createNotifier({
     send,
-    getTitle: (id) => titles.get(id),
+    getTitle: resolveTitle,
     logger,
     minIntervalMs: cfg.minIntervalMs ?? 3000,
     cfg,

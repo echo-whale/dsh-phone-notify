@@ -192,3 +192,39 @@ test('推送失败不会把事件处理打断（返回 undefined 不抛）', asy
   )
   await new Promise((r) => setTimeout(r, 1200))
 })
+
+test('旧会话（挂载前就存在）也能拿到标题：走标题服务读日志', async () => {
+  const calls = []
+  globalThis.fetch = async (url, init) => {
+    calls.push(JSON.parse(init.body))
+    return { ok: true, status: 200 }
+  }
+  const { apply } = await import('../index.js')
+  const ctx = fakeCtx()
+  const asked = []
+  ctx.get = (name) =>
+    name === 'sessionTitle'
+      ? { get: (session) => { asked.push(session.id); return { title: '挂 r.e.c 的墙' } } }
+      : undefined
+  apply(ctx, { url: 'https://example.test/hook', minIntervalMs: 0 })
+  ctx.handlers.get('session/event')({ id: 'session-old-abcdef' }, { type: 'turn/end', data: { turn: 9, reason: { kind: 'completed' } } })
+  await new Promise((r) => setTimeout(r, 30))
+  const done = calls.find((c) => c.event === 'task_done')
+  assert.equal(done.title, '挂 r.e.c 的墙', '缓存里没有就该问标题服务')
+  assert.deepEqual(asked, ['session-old-abcdef'], '要把 session 对象递过去，只给 id 是读不到日志的')
+})
+
+test('连标题服务都没有时，至少给会话尾号，别让模板渲染出 {title}', async () => {
+  const calls = []
+  globalThis.fetch = async (url, init) => {
+    calls.push(JSON.parse(init.body))
+    return { ok: true, status: 200 }
+  }
+  const { apply } = await import('../index.js')
+  const ctx = fakeCtx()
+  apply(ctx, { url: 'https://example.test/hook', minIntervalMs: 0 })
+  ctx.handlers.get('session/event')({ id: 'session-08a26f10-1c51-4e9e-b31d-f493f171c0a6' }, { type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } })
+  await new Promise((r) => setTimeout(r, 30))
+  const done = calls.find((c) => c.event === 'task_done')
+  assert.equal(done.title, '会话 …71c0a6')
+})
