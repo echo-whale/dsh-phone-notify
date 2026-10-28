@@ -10,23 +10,36 @@
  * 后两个是中间件：拿到 next 必须原样调下去，否则 DSH 会卡住等你——那不是通知，
  * 那是把工具变成枷锁。这一层只负责叫醒手机，决定权还在电脑前。
  */
-import z from '@deepseek-ai/schemastery'
 import { push } from './lib/notify.js'
 import { resolveConfig } from './lib/config.js'
 import { createNotifier } from './lib/dsh.js'
 
 export const name = 'dsh-phone-notify'
 
-export const Config = z.object({
-  url: z.string().description('接收端 webhook 地址（http/https）'),
-  secret: z.string().role('secret').description('HMAC 签名密钥，留空则不带签名'),
-  includeTitle: z.boolean().default(true).description('推送里带会话标题'),
-  notifyOnAbort: z.boolean().default(false).description('你按了停止也推一条'),
-  notifyOnApproval: z.boolean().default(true).description('工具要批准时推'),
-  notifyOnQuestion: z.boolean().default(true).description('等你回答时推'),
-  quietHours: z.string().default('').description('免打扰时段，形如 23:00-08:00；空为关闭'),
-  minIntervalMs: z.number().default(3000).description('同一会话同一事件的去抖窗口（毫秒）'),
-})
+// schemastery 是 DSH 自带的（它自己的插件都用），但不是每个 profile 都把它摆在
+// 我们能解析到的位置。拿不到就退化成「不做 schema 校验」，配置照样能跑——
+// 不能因为一个锦上添花的依赖让整个插件加载失败。
+let Config
+try {
+  const z = (await import('@deepseek-ai/schemastery')).default
+  Config = ConfigSchema(z)
+} catch {
+  Config = undefined
+}
+export { Config }
+
+function ConfigSchema(z) {
+  return z.object({
+    url: z.string().description('接收端 webhook 地址（http/https）'),
+    secret: z.string().role('secret').description('HMAC 签名密钥，留空则不带签名'),
+    includeTitle: z.boolean().default(true).description('推送里带会话标题'),
+    notifyOnAbort: z.boolean().default(false).description('你按了停止也推一条'),
+    notifyOnApproval: z.boolean().default(true).description('工具要批准时推'),
+    notifyOnQuestion: z.boolean().default(true).description('等你回答时推'),
+    quietHours: z.string().default('').description('免打扰时段，形如 23:00-08:00；空为关闭'),
+    minIntervalMs: z.number().default(3000).description('同一会话同一事件的去抖窗口（毫秒）'),
+  })
+}
 
 export function apply(ctx, config = {}) {
   const { cfg, warnings } = resolveConfig(config)
