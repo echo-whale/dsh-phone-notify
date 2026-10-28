@@ -30,7 +30,7 @@ DSH 事件  →  HTTP POST（可选 HMAC 签名）  →  任意接收端  →  �
 |---|---|---|
 | DSH（DeepSeek Harness） | `0.2.1-rc.3` | 真机验证的版本。事件名与字段从它的 npm 类型定义读出来，不是猜的 |
 | Cordis | `4.0.5` | DSH 的插件宿主；`export function apply(ctx, config)` + `ctx.on(...)` |
-| Node.js | `>= 20`（实测 22.x） | 只用 ESM、`globalThis.fetch`、`AbortSignal.timeout`，没有原生编译 |
+| Node.js | `>= 18.17`（实测 22.x） | 只用 ESM、`globalThis.fetch`、`AbortSignal.timeout`，没有原生编译 |
 
 DSH 的 rc 通道改字段比想像中频繁。升级 DSH 后如果突然收不到推送，第一步是重跑
 `npm test` 里的事件回放用例（`test/fixtures/` 存的是真实会话日志），红了就是上游改了字段。

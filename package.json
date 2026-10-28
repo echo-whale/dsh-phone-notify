@@ -36,6 +36,15 @@
     "push"
   ],
   "license": "MIT",
+  "author": "echo-whale",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/echo-whale/dsh-phone-notify.git"
+  },
+  "homepage": "https://github.com/echo-whale/dsh-phone-notify#readme",
+  "bugs": {
+    "url": "https://github.com/echo-whale/dsh-phone-notify/issues"
+  },
   "dependencies": {},
   "peerDependencies": {
     "@deepseek-ai/schemastery": "~3.18.5"
