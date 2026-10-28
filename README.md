@@ -157,7 +157,7 @@ export DSH_PHONE_SECRET="你的密钥"
 
 ```
 content-type: application/json
-user-agent: dsh-phone-notify/0.1
+user-agent: dsh-phone-notify/0.2.1
 x-dsh-event: task_done
 x-dsh-id: <uuid>
 x-webhook-timestamp: 1793000000              # 配了 secret 才有
