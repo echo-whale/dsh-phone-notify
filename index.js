@@ -11,8 +11,17 @@
  * 那是把工具变成枷锁。这一层只负责叫醒手机，决定权还在电脑前。
  */
 import { push } from './lib/notify.js'
+import { readFileSync } from 'node:fs'
 import { resolveConfig } from './lib/config.js'
 import { createNotifier } from './lib/dsh.js'
+
+const VERSION = (() => {
+  try {
+    return JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version
+  } catch {
+    return '0.0.0'
+  }
+})()
 
 export const name = 'dsh-phone-notify'
 
@@ -42,6 +51,28 @@ function ConfigSchema(z) {
 }
 
 export function apply(ctx, config = {}) {
+  try {
+    applyPlugin(ctx, config)
+  } catch (e) {
+    // 挂载阶段炸了，日志你也看不到（DSH 的日志不在你方便翻的地方）。
+    // 那就让它用同一条推送链路把死因说出来——能推出去，说明网络和签名都没问题。
+    try {
+      const { cfg } = resolveConfig(config)
+      if (cfg.url) {
+        push(cfg, 'plugin_error', {
+          title: `插件挂载失败 v${VERSION}`,
+          sessionId: 'mount',
+          detail: `${e?.name || 'Error'}: ${String(e?.message || e).slice(0, 300)}`,
+        })
+      }
+    } catch {
+      /* 上报本身失败就算了，不能再抛 */
+    }
+    throw e
+  }
+}
+
+function applyPlugin(ctx, config = {}) {
   const { cfg, warnings } = resolveConfig(config)
   const logger = (msg) => {
     try {
@@ -59,6 +90,14 @@ export function apply(ctx, config = {}) {
 
   const titles = new Map()
   const send = (event, meta) => push(cfg, event, meta, { logger })
+
+  // 自报一声。收到这条 = 插件确实被 DSH 加载了、签名和网络也通，
+  // 后面收不到 task_done 就只可能是事件没挂上，排查范围立刻缩小一半。
+  send('plugin_mounted', {
+    title: `dsh-phone-notify v${VERSION} 已挂载`,
+    sessionId: 'mount',
+    detail: `node ${process.versions?.node || '?'} · ${process.platform} · 待命`,
+  })
   const notify = createNotifier({
     send,
     getTitle: (id) => titles.get(id),
