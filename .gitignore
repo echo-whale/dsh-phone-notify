@@ -3,3 +3,5 @@ node_modules/
 .dsh-phone-notify.json
 config.local.json
 .DS_Store
+INSTALL-给你的.txt
+*.tgz
