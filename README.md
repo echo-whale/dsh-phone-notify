@@ -1,5 +1,8 @@
 # dsh-phone-notify
 
+[![npm](https://img.shields.io/npm/v/dsh-phone-notify.svg)](https://www.npmjs.com/package/dsh-phone-notify)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 > 把 DSH（DeepSeek Harness）的任务状态推到**手机上**，而不是弹在没人看的桌面上。
 
 跑一个四十分钟的任务，人去厨房、去地铁、去开会。任务跑完了、报错了、等你在对话框里确认——
@@ -53,7 +56,8 @@ grep -n "'turn/end'" -A 4 package/lib/types/types.d.ts
 
 ```bash
 cd ~/.dsh/profiles/desktop          # Windows: %USERPROFILE%\.dsh\profiles\desktop
-pnpm add /path/to/dsh-phone-notify  # 或 npm pack 出来的 tgz，或 GitHub 地址
+pnpm add dsh-phone-notify           # 来自 npm 仓库，推荐
+# 或用本地路径 / npm pack 出来的 tgz / GitHub 地址：pnpm add github:echo-whale/dsh-phone-notify
 ```
 
 然后在同一个目录的 `cordis.patch.yml` 里加一行（这个文件是 DSH 自己的配置层，它上面所有 bundle 之后应用）：
