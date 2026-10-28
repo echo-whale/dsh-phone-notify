@@ -196,6 +196,17 @@ node bin/test-push.mjs          # 往你配的地址发一条假事件
 
 第二条不碰 DSH、不读你的任何会话，只验"我这头到接收端"这段路。
 
+## 给推送配一张表情包（可选，安利向）
+
+插件只发文字。想让它有表情，在自己接收端配图就行——思路和一份现成的事件映射表
+在 [docs/STICKERS.md](docs/STICKERS.md)。
+
+素材我用的是一套叫**大肥鱼**的表情包：322 张动图、25 个情绪分类，作者是 B 站
+[可以叫我云大人](https://space.bilibili.com/103739)，[kiriyuki.com](https://kiriyuki.com)
+制作，CC-BY-NC-4.0（非商用、保留署名）。看完你就会明白为什么一个通知值一张图。
+
+**素材不要打包进本仓库**，理由在 [docs/STICKERS.md](docs/STICKERS.md) 里写了。
+
 ## 安全
 
 读 [docs/SAFETY.md](docs/SAFETY.md)。要点：
