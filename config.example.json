@@ -1,0 +1,9 @@
+{
+  "url": "https://your-endpoint.example.com/webhooks/dsh-notify",
+  "secret": "your-hmac-secret",
+  "quietHours": "23:00-08:00",
+  "includeTitle": true,
+  "retries": 2,
+  "timeoutMs": 8000,
+  "maxPerMinute": 10
+}

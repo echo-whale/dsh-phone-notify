@@ -1,0 +1,5 @@
+node_modules/
+*.log
+.dsh-phone-notify.json
+config.local.json
+.DS_Store

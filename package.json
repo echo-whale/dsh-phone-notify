@@ -1,0 +1,44 @@
+{
+  "name": "dsh-phone-notify",
+  "version": "0.1.0",
+  "description": "Push DeepSeek Harness task events (done / failed / waiting for you) to your phone via any webhook — for when you're away from the computer.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./notify": "./lib/notify.js",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "dsh-phone-notify": "./bin/init.mjs"
+  },
+  "files": [
+    "lib",
+    "bin",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "init": "node bin/init.mjs"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "notification",
+    "webhook",
+    "push"
+  ],
+  "license": "MIT",
+  "dependencies": {},
+  "dsh": {
+    "client": {
+      "platform": "web",
+      "inject": []
+    }
+  }
+}
