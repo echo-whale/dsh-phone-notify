@@ -44,13 +44,19 @@ pnpm add /path/to/dsh-phone-notify  # 或 npm pack 出来的 tgz，或 GitHub �
 然后在同一个目录的 `cordis.patch.yml` 里加一行（这个文件是 DSH 自己的配置层，它上面所有 bundle 之后应用）：
 
 ```yaml
-- id: phone-notify
-  name: dsh-phone-notify
-  config:
-    url: https://your-host/webhooks/dsh-notify
-    secret: 你的密钥
-    includeTitle: true
+- insert:
+    - id: phone-notify
+      name: dsh-phone-notify
+      config:
+        url: https://your-host/webhooks/dsh-notify
+        secret: 你的密钥
+        includeTitle: true
 ```
+
+`insert:` 那一层不能省。这个文件里裸写的 `- id: xxx` 是**覆盖已有行**的语义，
+不是新增——`@deepseek-ai/dsh-plugin-manager` 会把「有 id 但没有 insert、且这个 id
+不在任何 bundle 的声明里」的条目归到 `overrides`，然后什么也不发生。
+插件不加载、不报错、日志里什么都没有。这是个会吃掉你半小时的坑。
 
 重启 DSH（或在 YAML 里开着 HMR 时它自己会重载）。日志里出现这一行就算挂上了：
 
