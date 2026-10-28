@@ -26,6 +26,7 @@ test('payload 只有状态，没有正文', () => {
     content: 'SECRET 对话正文不该出现',
   })
   assert.equal(p.event, 'task_done')
+  assert.equal(p.event_type, 'task_done', '接收端按 event_type 路由')
   assert.equal(p.title, '给墙加一个入口')
   assert.equal(p.session, '…123456')
   assert.equal(JSON.stringify(p).includes('SECRET'), false)
@@ -58,7 +59,8 @@ test('成功推送带上签名头', async () => {
     { title: 't', sessionId: 'sid-abcdef', turnId: 'turn1' }, { fetchImpl })
   assert.equal(r.ok, true)
   assert.equal(seen.headers['x-dsh-event'], 'task_done')
-  assert.match(seen.headers['x-dsh-signature'], /^sha256=[0-9a-f]{64}$/)
+  assert.match(seen.headers['x-webhook-signature-v2'], /^[0-9a-f]{64}$/)
+  assert.ok(seen.headers['x-webhook-timestamp'], 'V2 必须带时间戳，否则降级成可重放的 V1')
   assert.equal(seen.body.includes('s3cret'), false, '密钥不能出现在请求体里')
 })
 
